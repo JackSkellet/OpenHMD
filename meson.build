@@ -91,7 +91,6 @@ else
 	endif
 endif
 
-_drivers = get_option('drivers')
 if _drivers.contains('rift')
 	sources += [
 		'src/drv_oculus_rift/rift.c',
