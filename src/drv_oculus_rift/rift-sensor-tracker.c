@@ -468,7 +468,7 @@ rift_sensor_new (ohmd_context* ohmd_ctx, int id, const char *serial_no, libusb_d
   struct libusb_device_descriptor desc;
   ret = libusb_get_device_descriptor(dev, &desc);
   if (ret < 0)
-	  return ret;
+	  return NULL;
 
   sensor_ctx = ohmd_alloc(ohmd_ctx, sizeof (rift_sensor_ctx));
 
