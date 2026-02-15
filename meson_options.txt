@@ -16,6 +16,7 @@ option(
 	type: 'array',
 	choices: [
 		'rift',
+		'rift-s',
 		'deepoon',
 		'psvr',
 		'vive',
@@ -28,6 +29,7 @@ option(
 	],
 	value: [
 		'rift',
+		'rift-s',
 		'deepoon',
 		'psvr',
 		'vive',
@@ -48,6 +50,12 @@ option(
 		'hidraw'
 	],
 	value: 'auto',
+)
+
+option(
+	'tests',
+	type: 'boolean',
+	value: true,
 )
 
 option('debugging_mode', type : 'boolean', value : false,
