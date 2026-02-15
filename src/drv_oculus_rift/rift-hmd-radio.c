@@ -131,34 +131,30 @@ static bool json_read_vec3(const nx_json *nxj, const char *key, vec3f *out)
 	return true;
 }
 
-static int rift_touch_parse_calibration(char *json_in,
+static int rift_touch_parse_calibration(char *json,
 		rift_touch_calibration *c)
 {
 	const nx_json* nxj, *obj, *version, *array;
 	int version_number = -1;
 	unsigned int i;
-	/* Operate on a copy of the json, so we can print it
-	 * an error if invalid, as nx_json modifies the input string */
-	char *json = malloc (strlen (json_in) + 1);
-	strcpy (json, json_in);
 
-	nxj = nx_json_parse (json, 0);
+	nxj = nx_json_parse (json, NULL);
 	if (nxj == NULL)
 		return -1;
 
 	obj = nx_json_get(nxj, "TrackedObject");
 	if (obj->type == NX_JSON_NULL)
-		goto fail_version;
+		goto fail;
 
 	version = nx_json_get (obj, "JsonVersion");
-	if (version->type != NX_JSON_INTEGER)
-		goto fail_version;
+	if (version->type != NX_JSON_INTEGER || version->int_value != 2) {
+		version_number = version->int_value;
+		goto fail;
+	}
 	version_number = version->int_value;
-	if (version_number != 2)
-		goto fail_version;
 
 	if (!json_read_vec3 (obj, "ImuPosition", &c->imu_position))
-		goto fail_imu;
+		goto fail;
 
 	c->joy_x_range_min = nx_json_get (obj, "JoyXRangeMin")->int_value;
 	c->joy_x_range_max = nx_json_get (obj, "JoyXRangeMax")->int_value;
@@ -195,57 +191,10 @@ static int rift_touch_parse_calibration(char *json_in,
 	for (i = 0; i < 8; i++)
 		c->cap_sense_touch[i] = nx_json_item (array, i)->int_value;
 
-	/* LED model points */
-	const nx_json *led_model = nx_json_get (obj, "ModelPoints");
-	if (led_model->type != NX_JSON_OBJECT) {
-		goto fail_leds;
-	}
-
-	if (led_model->length > 255) {
-		LOGE("Too many LEDs in the controller mode - %d > 255", led_model->length);
-		goto fail_leds;
-	}
-
-	rift_leds_init (&c->leds, led_model->length);
-
-	for (i = 0; i < c->leds.num_points; i++) {
-		rift_led *led = &c->leds.points[i];
-		const nx_json* point[6];
-		char name[9];
-		int j;
-
-		snprintf(name, 9, "Point%d", i);
-		array = nx_json_get (led_model, name);
-		if (array->type != NX_JSON_ARRAY) {
-			goto fail_leds;
-		}
-
-		for (j = 0; j < 6; j++)
-			point[j] = nx_json_item (array, j);
-
-		led->pos.x = point[0]->dbl_value;
-		led->pos.y = point[1]->dbl_value;
-		led->pos.z = point[2]->dbl_value;
-		led->dir.x = point[3]->dbl_value;
-		led->dir.y = point[4]->dbl_value;
-		led->dir.z = point[5]->dbl_value;
-		led->pattern = 0xff;
-	}
-
-	free (json);
 	nx_json_free (nxj);
 	return 0;
-fail_version:
-	LOGW ("Unrecognised Touch Controller JSON data version %d\n%s\n", version_number, json);
-	goto fail;
-fail_imu:
-	LOGW ("Unrecognised Touch Controller JSON data. Invalid IMU data\n%s\n", json);
-	goto fail;
-fail_leds:
-	LOGW ("Unrecognised Touch Controller JSON data. Invalid LED data\n%s\n", json);
-	goto fail;
 fail:
-	free (json);
+	LOGW ("Unrecognised Touch Controller JSON data version %d\n%s\n", version_number, json);
 	nx_json_free (nxj);
 	return -1;
 }
@@ -273,21 +222,10 @@ int rift_touch_get_calibration(hid_device *handle, int device_id,
 	if (ret < 0)
 		return ret;
 
-	if (rift_touch_parse_calibration(json, calibration) < 0)
-		return ret;
-
-	char control_name[20];
-	snprintf (control_name, 20, "Controller %u", device_id);
-	rift_leds_dump (&calibration->leds, control_name);
+	rift_touch_parse_calibration(json, calibration);
 
 	free(json);
 	return 0;
-}
-
-void
-rift_touch_clear_calibration(rift_touch_calibration *calibration)
-{
-	rift_leds_clear (&calibration->leds);
 }
 
 bool rift_hmd_radio_get_address(hid_device *handle, uint8_t radio_address[5])
@@ -309,4 +247,3 @@ bool rift_hmd_radio_get_address(hid_device *handle, uint8_t radio_address[5])
 
 	return true;
 }
-
